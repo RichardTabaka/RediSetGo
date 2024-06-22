@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
 )
@@ -26,19 +25,15 @@ func main() {
 	defer connection.Close()
 
 	for {
-		buffer := make([]byte, 1024)
-
-		_, err = connection.Read(buffer)
+		resp := NewResp(connection)
+		value, err := resp.Read()
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Println("Client read error: ", err.Error())
+			fmt.Println("RESP read error: ", err.Error())
 			os.Exit(1)
 		}
 
-		// Ignore request for now, send back
-		// *not* PONG so I know it's not actual redis running
+		fmt.Println(value)
+
 		connection.Write([]byte("+OK\r\n"))
 	}
 }
