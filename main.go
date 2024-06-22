@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -32,10 +33,30 @@ func main() {
 			os.Exit(1)
 		}
 
-		_ = value
+		if value.valueType != "array" {
+			fmt.Println("Invalid request, expected array")
+			continue
+		}
+
+		if len(value.array) == 0 {
+			fmt.Println("Invalid request, array length must be > 0")
+			continue
+		}
+
+		command := strings.ToUpper(value.array[0].bulk)
+		args := value.array[1:]
 
 		writer := NewWriter(connection)
 
-		writer.Write(Value{valueType: "string", str: "OK"})
+		handler, ok := Handlers[command]
+
+		if !ok {
+			fmt.Println("Invalid command: ", command)
+			writer.Write(Value{valueType: "string", str: ""})
+			continue
+		}
+
+		result := handler(args)
+		writer.Write(result)
 	}
 }
