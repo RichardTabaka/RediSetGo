@@ -32,8 +32,10 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println(value)
+		_ = value
 
-		connection.Write([]byte("+OK\r\n"))
+		writer := NewWriter(connection)
+
+		writer.Write(Value{valueType: "string", str: "OK"})
 	}
 }

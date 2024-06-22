@@ -16,25 +16,53 @@ const (
 )
 
 type Value struct {
-	typ   string
-	str   string
-	num   int
-	bulk  string
-	array []Value
+	valueType string
+	str       string
+	num       int
+	bulk      string
+	array     []Value
 }
 
-// Resp represents a RESP protocol parser
-type Resp struct {
+// RespParser represents a RESP protocol parser
+type RespParser struct {
 	reader *bufio.Reader
 }
 
+// struct to take the io.Writer
+type Writer struct {
+	writer io.Writer
+}
+
+// PUBLIC
 // Creates new RESP parser
-func NewResp(rd io.Reader) *Resp {
-	return &Resp{reader: bufio.NewReader(rd)}
+func NewResp(rd io.Reader) *RespParser {
+	return &RespParser{reader: bufio.NewReader(rd)}
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{writer: w}
+}
+
+// 'Marshal' or serialize the data into RESP format
+func (v Value) Marshal() []byte {
+	switch v.valueType {
+	case "array":
+		return v.marshalArray()
+	case "bulk":
+		return v.marshalBulk()
+	case "error":
+		return v.marshalError()
+	case "null":
+		return v.marshalNull()
+	case "string":
+		return v.marshalString()
+	default:
+		return []byte{}
+	}
 }
 
 // parses the next value from RESP stream
-func (r *Resp) Read() (Value, error) {
+func (r *RespParser) Read() (Value, error) {
 	valueType, err := r.reader.ReadByte()
 
 	if err != nil {
@@ -52,10 +80,72 @@ func (r *Resp) Read() (Value, error) {
 	}
 }
 
+// Take a value and write the RESP formatted version to writer
+func (w *Writer) Write(v Value) error {
+	var bytes = v.Marshal()
+	_, err := w.writer.Write(bytes)
+
+	return err
+}
+
+// PRIVATE
+// marshal an array into RESP format
+func (v Value) marshalArray() []byte {
+	arrayLength := len(v.array)
+	var bytes []byte
+	bytes = append(bytes, ARRAY)
+	bytes = append(bytes, strconv.Itoa(arrayLength)...)
+	bytes = append(bytes, '\r', '\n')
+
+	// recursively marshal contents of the array
+	for i := 0; i < arrayLength; i++ {
+		bytes = append(bytes, v.array[i].Marshal()...)
+	}
+
+	return bytes
+}
+
+// marshal a bulk string into RESP format
+func (v Value) marshalBulk() []byte {
+	var bytes []byte
+	bytes = append(bytes, BULK)
+	bytes = append(bytes, strconv.Itoa(len(v.bulk))...)
+	bytes = append(bytes, '\r', '\n')
+	bytes = append(bytes, v.bulk...)
+	bytes = append(bytes, '\r', '\n')
+
+	return bytes
+}
+
+// marshal an error into RESP format
+func (v Value) marshalError() []byte {
+	var bytes []byte
+	bytes = append(bytes, ERROR)
+	bytes = append(bytes, v.str...)
+	bytes = append(bytes, '\r', '\n')
+
+	return bytes
+}
+
+// marshal a null
+func (v Value) marshalNull() []byte {
+	return []byte("$-1\r\n")
+}
+
+// marshal a string into RESP format
+func (v Value) marshalString() []byte {
+	var bytes []byte
+	bytes = append(bytes, STRING)
+	bytes = append(bytes, v.str...)
+	bytes = append(bytes, '\r', '\n')
+
+	return bytes
+}
+
 // reads an array value from the RESP stream
-func (r *Resp) readArray() (Value, error) {
+func (r *RespParser) readArray() (Value, error) {
 	v := Value{}
-	v.typ = "array"
+	v.valueType = "array"
 
 	// Get array length
 	arrayLength, _, err := r.readInteger()
@@ -77,9 +167,9 @@ func (r *Resp) readArray() (Value, error) {
 }
 
 // reads a bulk string from the RESP stream
-func (r *Resp) readBulk() (Value, error) {
+func (r *RespParser) readBulk() (Value, error) {
 	v := Value{}
-	v.typ = "bulk"
+	v.valueType = "bulk"
 
 	// get length of bulk string
 	bulkLength, _, err := r.readInteger()
@@ -106,7 +196,7 @@ func (r *Resp) readBulk() (Value, error) {
 }
 
 // reads an int value from the RESP stream
-func (r *Resp) readInteger() (x int, n int, err error) {
+func (r *RespParser) readInteger() (x int, n int, err error) {
 	line, n, err := r.readLine()
 	if err != nil {
 		return 0, 0, err
@@ -119,7 +209,7 @@ func (r *Resp) readInteger() (x int, n int, err error) {
 }
 
 // reads a line ending with \r\n
-func (r *Resp) readLine() (line []byte, n int, err error) {
+func (r *RespParser) readLine() (line []byte, n int, err error) {
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
