@@ -37,7 +37,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Ignore request for now, send back PONG
+		// Ignore request for now, send back
+		// *not* PONG so I know it's not actual redis running
 		connection.Write([]byte("+OK\r\n"))
 	}
 }
