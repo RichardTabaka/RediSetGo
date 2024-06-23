@@ -1,0 +1,19 @@
+# Ignore binary files and directories
+/bin/
+/build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Ignore database files
+database.aof
+
+# Ignore editor/IDE files and directories
+.vscode/
+.idea/
+*.iml
+
+# Ignore temporary files
+*.tmp
+*.swp
