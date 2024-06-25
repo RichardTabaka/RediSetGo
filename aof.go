@@ -23,6 +23,7 @@ var logCommands = map[string]bool{
 	"GET":     false,
 	"HGET":    false,
 	"HGETALL": false,
+	"KEYS":    false,
 	"PING":    false,
 }
 

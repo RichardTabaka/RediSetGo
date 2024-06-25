@@ -62,6 +62,11 @@ RediSetGo is a simple Redis-like key-value store implemented in Go. It supports 
     GET key
     ```
 
+- **DEL**: Deletes the key/value pair OR hashmap specified
+    ```sh
+    DEL key
+    ```
+
 - **HSET**: Sets a field in a hash
 
     ```sh
@@ -74,10 +79,28 @@ RediSetGo is a simple Redis-like key-value store implemented in Go. It supports 
     HGET hash field
     ```
 
+- **HGETALL**: Gets value for all fields in a hash
+
+    ```sh
+    HGETALL hash
+    ```
+
+- **HDEL**: Delete the value of a field in a hash
+
+    ```sh
+    HDEL hash field
+    ```
+
 - **HGETALL**: Gets all the fields and values in a hash
 
     ```sh
     HGETALL hash
+    ```
+
+- **KEYS**: Gets all keys that match a pattern
+
+    ```sh
+    KEYS pattern
     ```
 
 - **PING**: Simple test command to check server availability

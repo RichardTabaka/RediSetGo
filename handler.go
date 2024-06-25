@@ -1,6 +1,10 @@
 package main
 
-import "sync"
+import (
+	"fmt"
+	"strings"
+	"sync"
+)
 
 const (
 	ValueTypeArray   = "array"
@@ -11,11 +15,12 @@ const (
 	ValueTypeString  = "string"
 
 	ErrorDelArgs     = "Error: DEL command expects at least 1 argument(key)"
+	ErrorGetArgs     = "Error: GET command expects 1 argument(key)"
 	ErrorHDelArgs    = "Error: HDEL command expects at least 2 arguments(hash, key)"
 	ErrorHGetArgs    = "Error: HGET command expects 2 arguments(hash, key)"
 	ErrorHGetAllArgs = "Error: HGETALL command expects 1 argument (hash)"
 	ErrorHSetArgs    = "Error: HSET command expects 3 agruments(hash, key, value)"
-	ErrorGetArgs     = "Error: GET command expects 1 argument(key)"
+	ErrorKeyArgs     = "Error: KEYS command expects 1 argument(pattern)"
 	ErrorSetArgs     = "Error: SET command expects 2 arguments(key, value)"
 )
 
@@ -26,6 +31,7 @@ var Handlers = map[string]func([]Value) Value{
 	"HGETALL": hGetAll,
 	"HSET":    hSet,
 	"GET":     get,
+	"KEYS":    keys,
 	"PING":    ping,
 	"SET":     set,
 }
@@ -205,6 +211,60 @@ func hSet(args []Value) Value {
 		valueType: ValueTypeString,
 		str:       "OK",
 	}
+}
+
+// keys returns all keys matching a specified pattern
+func keys(args []Value) Value {
+	if len(args) != 1 {
+		return Value{
+			valueType: ValueTypeError,
+			str:       ErrorKeyArgs,
+		}
+	}
+
+	pattern := args[0].bulk
+
+	var matchingKeys []string
+
+	// Check SETs for any matches
+	SETsMutex.RLock()
+	for key := range SETs {
+		if matchPattern(pattern, key) {
+			matchingKeys = append(matchingKeys, key)
+		}
+	}
+	SETsMutex.RUnlock()
+
+	// Also check HSETs for any key matches
+	HSETsMutex.RLock()
+	for hashName := range HSETs {
+		for key := range HSETs[hashName] {
+			fullKey := fmt.Sprintf("%s:%s", hashName, key)
+			if matchPattern(pattern, fullKey) {
+				matchingKeys = append(matchingKeys, fullKey)
+			}
+		}
+	}
+	HSETsMutex.RUnlock()
+
+	// build result set
+	var result []Value
+	for _, key := range matchingKeys {
+		result = append(result, Value{
+			valueType: ValueTypeBulk,
+			bulk:      key,
+		})
+	}
+
+	return Value{
+		valueType: ValueTypeArray,
+		array:     result,
+	}
+}
+
+// helper function for pattern matching
+func matchPattern(pattern, key string) bool {
+	return pattern == "*" || strings.Contains(key, pattern)
 }
 
 // GET returns the value from SETs for a given key
