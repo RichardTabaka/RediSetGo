@@ -52,6 +52,8 @@ func (v Value) Marshal() []byte {
 		return v.marshalBulk()
 	case "error":
 		return v.marshalError()
+	case "integer":
+		return v.marshalInteger()
 	case "null":
 		return v.marshalNull()
 	case "string":
@@ -122,6 +124,18 @@ func (v Value) marshalError() []byte {
 	var bytes []byte
 	bytes = append(bytes, ERROR)
 	bytes = append(bytes, v.str...)
+	bytes = append(bytes, '\r', '\n')
+
+	return bytes
+}
+
+// marshal in int into RESP format
+func (v Value) marshalInteger() []byte {
+	valueStr := strconv.Itoa(v.num)
+
+	var bytes []byte
+	bytes = append(bytes, INTEGER)
+	bytes = append(bytes, valueStr...)
 	bytes = append(bytes, '\r', '\n')
 
 	return bytes

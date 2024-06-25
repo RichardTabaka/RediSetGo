@@ -36,6 +36,16 @@ RediSetGo is a simple Redis-like key-value store implemented in Go. It supports 
     ./RediSetGo
     ```
 
+    If after installing the Redis Client you're getting Listener Creation errors because the address, 6379, is already in use you will need to kill the redis server currently running.
+
+    ```sh
+    sudo snap stop redis
+    ```
+    or
+    ```sh
+    sudo kill redis-server
+    ```
+
 ## Usage
 
 ### Supported Commands

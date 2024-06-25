@@ -3,12 +3,14 @@ package main
 import "sync"
 
 const (
-	ValueTypeArray  = "array"
-	ValueTypeString = "string"
-	ValueTypeError  = "error"
-	ValueTypeBulk   = "bulk"
-	ValueTypeNull   = "null"
+	ValueTypeArray   = "array"
+	ValueTypeBulk    = "bulk"
+	ValueTypeError   = "error"
+	ValueTypeInteger = "integer"
+	ValueTypeNull    = "null"
+	ValueTypeString  = "string"
 
+	ErrorDelArgs     = "Error: DEL command expects at least 1 argument(key)"
 	ErrorHGetArgs    = "Error: HGET command expects 2 arguments(hash, key)"
 	ErrorHGetAllArgs = "Error: HGETALL command expects 1 argument (hash)"
 	ErrorHSetArgs    = "Error: HSET command expects 3 agruments(hash, key, value)"
@@ -17,6 +19,7 @@ const (
 )
 
 var Handlers = map[string]func([]Value) Value{
+	"DEL":     del,
 	"HGET":    hGet,
 	"HGETALL": hGetAll,
 	"HSET":    hSet,
@@ -30,6 +33,28 @@ var SETsMutex = sync.RWMutex{}
 
 var HSETs = map[string]map[string]string{}
 var HSETsMutex = sync.RWMutex{}
+
+// del will remove specified key(s) and corresponding value
+func del(args []Value) Value {
+	if len(args) == 0 {
+		return Value{valueType: ValueTypeError, str: ErrorDelArgs}
+	}
+
+	SETsMutex.Lock()
+	defer SETsMutex.Unlock()
+
+	deletedCount := 0
+	for _, arg := range args {
+		key := arg.bulk
+
+		if _, ok := SETs[key]; ok {
+			delete(SETs, key)
+			deletedCount++
+		}
+	}
+
+	return Value{valueType: ValueTypeInteger, num: deletedCount}
+}
 
 // The ping command, like an echo with a default of PONG
 func ping(args []Value) Value {

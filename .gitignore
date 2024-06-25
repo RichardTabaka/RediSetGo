@@ -5,6 +5,7 @@
 *.dll
 *.so
 *.dylib
+RediSetGo
 
 # Ignore database files
 database.aof

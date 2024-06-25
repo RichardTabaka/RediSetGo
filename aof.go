@@ -15,6 +15,7 @@ type AppendOnlyFile struct {
 }
 
 var logCommands = map[string]bool{
+	"DEL":     true,
 	"GET":     false,
 	"HGET":    false,
 	"HGETALL": false,
