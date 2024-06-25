@@ -11,6 +11,7 @@ const (
 	ValueTypeString  = "string"
 
 	ErrorDelArgs     = "Error: DEL command expects at least 1 argument(key)"
+	ErrorHDelArgs    = "Error: HDEL command expects at least 2 arguments(hash, key)"
 	ErrorHGetArgs    = "Error: HGET command expects 2 arguments(hash, key)"
 	ErrorHGetAllArgs = "Error: HGETALL command expects 1 argument (hash)"
 	ErrorHSetArgs    = "Error: HSET command expects 3 agruments(hash, key, value)"
@@ -20,6 +21,7 @@ const (
 
 var Handlers = map[string]func([]Value) Value{
 	"DEL":     del,
+	"HDEL":    hDel,
 	"HGET":    hGet,
 	"HGETALL": hGetAll,
 	"HSET":    hSet,
@@ -37,11 +39,16 @@ var HSETsMutex = sync.RWMutex{}
 // del will remove specified key(s) and corresponding value
 func del(args []Value) Value {
 	if len(args) == 0 {
-		return Value{valueType: ValueTypeError, str: ErrorDelArgs}
+		return Value{
+			valueType: ValueTypeError,
+			str:       ErrorDelArgs,
+		}
 	}
 
 	SETsMutex.Lock()
+	HSETsMutex.Lock()
 	defer SETsMutex.Unlock()
+	defer HSETsMutex.Unlock()
 
 	deletedCount := 0
 	for _, arg := range args {
@@ -50,19 +57,66 @@ func del(args []Value) Value {
 		if _, ok := SETs[key]; ok {
 			delete(SETs, key)
 			deletedCount++
+		} else if _, ok := HSETs[key]; ok {
+			delete(HSETs, key)
+			deletedCount++
 		}
 	}
 
-	return Value{valueType: ValueTypeInteger, num: deletedCount}
+	return Value{
+		valueType: ValueTypeInteger,
+		num:       deletedCount,
+	}
 }
 
 // The ping command, like an echo with a default of PONG
 func ping(args []Value) Value {
 	if len(args) == 0 {
-		return Value{valueType: ValueTypeString, str: "PONG"}
+		return Value{
+			valueType: ValueTypeString,
+			str:       "PONG",
+		}
 	}
 
-	return Value{valueType: ValueTypeString, str: args[0].bulk}
+	return Value{
+		valueType: ValueTypeString,
+		str:       args[0].bulk,
+	}
+}
+
+// HDEL deletes an item from a specified hashmap
+func hDel(args []Value) Value {
+	if len(args) < 2 {
+		return Value{
+			valueType: ValueTypeError,
+			str:       ErrorHDelArgs,
+		}
+	}
+
+	hashName := args[0].bulk
+	HSETsMutex.Lock()
+	defer HSETsMutex.Unlock()
+
+	deletedCount := 0
+	if _, ok := HSETs[hashName]; !ok {
+		return Value{
+			valueType: ValueTypeInteger,
+			num:       deletedCount,
+		}
+	}
+
+	for i := 1; i < len(args); i++ {
+		key := args[i].bulk
+		if _, ok := HSETs[hashName][key]; ok {
+			delete(HSETs[hashName], key)
+			deletedCount++
+		}
+	}
+
+	return Value{
+		valueType: ValueTypeInteger,
+		num:       deletedCount,
+	}
 }
 
 // HGET returns the value for a key within a specified hash
@@ -85,7 +139,10 @@ func hGet(args []Value) Value {
 		return Value{valueType: ValueTypeNull}
 	}
 
-	return Value{valueType: ValueTypeBulk, bulk: value}
+	return Value{
+		valueType: ValueTypeBulk,
+		bulk:      value,
+	}
 }
 
 // HGETALL returns all the values from a given hashmap
@@ -116,7 +173,10 @@ func hGetAll(args []Value) Value {
 		})
 	}
 
-	return Value{valueType: ValueTypeArray, array: result}
+	return Value{
+		valueType: ValueTypeArray,
+		array:     result,
+	}
 }
 
 // HSET creates key values within specific hashmaps
@@ -141,7 +201,10 @@ func hSet(args []Value) Value {
 	HSETs[hash][key] = value
 	HSETsMutex.Unlock()
 
-	return Value{valueType: ValueTypeString, str: "OK"}
+	return Value{
+		valueType: ValueTypeString,
+		str:       "OK",
+	}
 }
 
 // GET returns the value from SETs for a given key
@@ -163,7 +226,10 @@ func get(args []Value) Value {
 		return Value{valueType: ValueTypeNull}
 	}
 
-	return Value{valueType: ValueTypeBulk, bulk: value}
+	return Value{
+		valueType: ValueTypeBulk,
+		bulk:      value,
+	}
 }
 
 // SET creates key value pair to store data
@@ -182,5 +248,8 @@ func set(args []Value) Value {
 	SETs[key] = value
 	SETsMutex.Unlock()
 
-	return Value{valueType: ValueTypeString, str: "OK"}
+	return Value{
+		valueType: ValueTypeString,
+		str:       "OK",
+	}
 }

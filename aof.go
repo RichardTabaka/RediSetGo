@@ -15,13 +15,15 @@ type AppendOnlyFile struct {
 }
 
 var logCommands = map[string]bool{
-	"DEL":     true,
+	"DEL":  true,
+	"HDEL": true,
+	"HSET": true,
+	"SET":  true,
+
 	"GET":     false,
 	"HGET":    false,
 	"HGETALL": false,
-	"HSET":    true,
 	"PING":    false,
-	"SET":     true,
 }
 
 func NewAof(path string) (*AppendOnlyFile, error) {
