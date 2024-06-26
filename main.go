@@ -37,24 +37,39 @@ func main() {
 		handler(args)
 	})
 
-	// Listen for connections
-	connection, err := listener.Accept()
-	if err != nil {
-		fmt.Println("Connection acceptance error: ", err.Error())
-	}
+	for {
+		// Accept new connections
+		connection, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Connection acceptance error: ", err.Error())
+			continue
+		}
 
+		// Handle each connection in a new goroutine
+		go handleConnection(connection, appOnlyFile)
+	}
+}
+
+func handleConnection(
+	connection net.Conn,
+	appOnlyFile *AppendOnlyFile) {
 	defer connection.Close()
 
 	for {
 		resp := NewResp(connection)
+		if resp == nil {
+			fmt.Println("NewResp returned nil")
+			return
+		}
+
 		value, err := resp.Read()
 		if err != nil {
 			fmt.Println("RESP read error: ", err.Error())
-			os.Exit(1)
+			return
 		}
 
 		if value.valueType != "array" {
-			fmt.Println("Invalid request, expected array")
+			fmt.Println("Invalid request, array expected")
 			continue
 		}
 
@@ -67,18 +82,28 @@ func main() {
 		args := value.array[1:]
 
 		writer := NewWriter(connection)
+		if writer == nil {
+			fmt.Println("NewWriter returned nil")
+			return
+		}
 
 		handler, ok := Handlers[command]
 
 		if !ok {
 			fmt.Println("Invalid command: ", command)
-			writer.Write(Value{valueType: "string", str: ""})
+			writer.Write(Value{
+				valueType: ValueTypeString,
+				str:       "",
+			})
 			continue
 		}
 
-		// persist commands
 		if logCommands[command] {
-			appOnlyFile.Write(value)
+			err = appOnlyFile.Write(value)
+			if err != nil {
+				fmt.Println("AppendOnlyFile write error: ", err.Error())
+				continue
+			}
 		}
 
 		result := handler(args)
