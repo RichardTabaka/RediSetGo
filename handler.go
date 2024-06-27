@@ -42,6 +42,35 @@ var SETsMutex = sync.RWMutex{}
 var HSETs = map[string]map[string]string{}
 var HSETsMutex = sync.RWMutex{}
 
+func GetCurrentState() map[string]Value {
+	currentState := make(map[string]Value)
+
+	// Get current SETs
+	SETsMutex.RLock()
+	for key, value := range SETs {
+		currentState[key] = Value{
+			valueType: ValueTypeString,
+			str:       value,
+		}
+	}
+	SETsMutex.RUnlock()
+
+	// Get current HSETs
+	HSETsMutex.RLock()
+	for hashName, hash := range HSETs {
+		for key, value := range hash {
+			fullKey := fmt.Sprintf("%s:%s", hashName, key)
+			currentState[fullKey] = Value{
+				valueType: ValueTypeBulk,
+				bulk:      value,
+			}
+		}
+	}
+	HSETsMutex.RUnlock()
+
+	return currentState
+}
+
 // del will remove specified key(s) and corresponding value
 func del(args []Value) Value {
 	if len(args) == 0 {
