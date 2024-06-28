@@ -4,9 +4,9 @@ RediSetGo is a simple Redis-like key-value store implemented in Go. It supports 
 
 ## Features
 
-- Basic Redis commands: `SET`, `GET`, `HSET`, `HGET`, `HGETALL`, `PING`
+- Basic Redis commands: `SET`, `GET`, `DEL`, `HSET`, `HGET`, `HGETALL`, `HDEL`, `PING`
 - Append-only file for persistence
-- Append-only file shrunk on startup removing deleted items and delete commands
+- Append-only file shrunk on startup removing deleted items and delete commands(CURRENTLY BROKEN, need to resolve temp file error)
 - Simple in-memory data structures
 
 ## Getting Started
