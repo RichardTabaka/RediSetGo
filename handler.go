@@ -42,6 +42,7 @@ var SETsMutex = sync.RWMutex{}
 var HSETs = map[string]map[string]string{}
 var HSETsMutex = sync.RWMutex{}
 
+// Used to grab current state of in memory database for AOF rewrite
 func GetCurrentState() map[string]Value {
 	currentState := make(map[string]Value)
 
@@ -59,10 +60,14 @@ func GetCurrentState() map[string]Value {
 	HSETsMutex.RLock()
 	for hashName, hash := range HSETs {
 		for key, value := range hash {
-			fullKey := fmt.Sprintf("%s:%s", hashName, key)
-			currentState[fullKey] = Value{
-				valueType: ValueTypeBulk,
-				bulk:      value,
+			currentState[fmt.Sprintf("%s:%s", hashName, key)] = Value{
+				valueType: ValueTypeArray,
+				array: []Value{
+					{valueType: ValueTypeBulk, bulk: "HSET"},
+					{valueType: ValueTypeBulk, bulk: hashName},
+					{valueType: ValueTypeBulk, bulk: key},
+					{valueType: ValueTypeBulk, bulk: value},
+				},
 			}
 		}
 	}

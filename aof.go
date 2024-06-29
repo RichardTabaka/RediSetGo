@@ -115,73 +115,62 @@ func (appendOnlyFile *AppendOnlyFile) rewriteAof(currentState map[string]Value) 
 	appendOnlyFile.mutex.Lock()
 	defer appendOnlyFile.mutex.Unlock()
 
-	// Create a temp file
-	tempFile, err := os.CreateTemp("", "aof-rewrite.aof")
-	if err != nil {
-		fmt.Println("Error creating temp file:", err)
-		return err
-	}
-
-	// Write current state to temp file
-	for key, value := range currentState {
-		var command Value
-		if value.valueType == ValueTypeString {
-			command = Value{
-				valueType: ValueTypeArray,
-				array: []Value{
-					{valueType: ValueTypeBulk, bulk: "SET"},
-					{valueType: ValueTypeBulk, bulk: key},
-					{valueType: ValueTypeBulk, bulk: value.str},
-				},
-			}
-		} else if value.valueType == ValueTypeBulk {
-			command = Value{
-				valueType: ValueTypeArray,
-				array: []Value{
-					{valueType: ValueTypeBulk, bulk: "HSET"},
-					{valueType: ValueTypeBulk, bulk: key},
-					{valueType: ValueTypeBulk, bulk: value.bulk},
-				},
-			}
-		}
-
-		_, err := tempFile.Write(command.Marshal())
-		if err != nil {
-			fmt.Println("Error writing to temp file:", err)
-			tempFile.Close() // Ensure tempFile is closed in case of error
-			return err
-		}
-	}
-
-	// Close temp file to flush all writes
-	if err := tempFile.Close(); err != nil {
-		fmt.Println("Error closing temp file:", err)
-		return err
-	}
-
-	// Open the new file to write into
+	// Open the AOF file with truncate mode to clear it
 	oldPath := appendOnlyFile.file.Name()
-	newFile, err := os.OpenFile(oldPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	aofFile, err := os.OpenFile(oldPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
 	if err != nil {
-		fmt.Println("Error opening new AOF file:", err)
+		fmt.Println("Error opening AOF file:", err)
 		return err
 	}
 
-	// Open temp file again for reading
-	tempFile, err = os.Open(tempFile.Name())
-	if err != nil {
-		fmt.Println("Error reopening temp file:", err)
-		newFile.Close() // Ensure newFile is closed in case of error
-		return err
-	}
-	defer tempFile.Close()
-	defer newFile.Close()
+	// Write current state directly to the AOF file
+	for key, value := range currentState {
+		if value.valueType == ValueTypeArray && len(value.array) > 0 && value.array[0].bulk == "HSET" {
+			// Write HSET command
+			_, err := aofFile.Write(value.Marshal())
+			if err != nil {
+				fmt.Println("Error writing to AOF file:", err)
+				aofFile.Close() // Ensure aofFile is closed in case of error
+				return err
+			}
+		} else {
+			// Write other commands
+			var command Value
+			if value.valueType == ValueTypeString {
+				command = Value{
+					valueType: ValueTypeArray,
+					array: []Value{
+						{valueType: ValueTypeBulk, bulk: "SET"},
+						{valueType: ValueTypeBulk, bulk: key},
+						{valueType: ValueTypeBulk, bulk: value.str},
+					},
+				}
+			}
 
-	_, err = io.Copy(newFile, tempFile)
-	if err != nil {
-		fmt.Println("Error copying temp file to AOF file:", err)
+			_, err := aofFile.Write(command.Marshal())
+			if err != nil {
+				fmt.Println("Error writing to AOF file:", err)
+				aofFile.Close() // Ensure aofFile is closed in case of error
+				return err
+			}
+		}
+	}
+
+	// Flush all writes and close the file
+	if err := aofFile.Close(); err != nil {
+		fmt.Println("Error closing AOF file:", err)
 		return err
 	}
+
+	// Reopen the AOF file for appending
+	appendOnlyFile.file, err = os.OpenFile(oldPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		fmt.Println("Error reopening AOF file:", err)
+		return err
+	}
+
+	appendOnlyFile.rd = bufio.NewReader(appendOnlyFile.file)
+	fmt.Println("AOF rewrite completed successfully")
 
 	return nil
 }
