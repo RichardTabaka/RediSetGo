@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
 )
 
 func main() {
@@ -22,18 +25,61 @@ func main() {
 		fmt.Println("AppendOnlyFile creation error: ", err.Error())
 		os.Exit(1)
 	}
-	defer appOnlyFile.CloseFile()
+
+	// Handle termination signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// WaitGroup to wait for all go routines to finish
+	var wg sync.WaitGroup
+	var shuttingDown bool
+
+	go func() {
+		<-sigChan
+		fmt.Println("\nTermination signal received. Shutting down")
+
+		// Indicate the server is shutting down
+		shuttingDown = true
+
+		// Get current state and rewrite AOF
+		currentState := GetCurrentState()
+		if err := appOnlyFile.rewriteAof(currentState); err != nil {
+			fmt.Println("Error rewriting AOF:", err)
+		}
+
+		// Close listener and file
+		listener.Close()
+		appOnlyFile.CloseFile()
+		wg.Wait() // Wait for all goroutines to finish
+		os.Exit(0)
+	}()
 
 	for {
+		if shuttingDown {
+			break
+		}
+
 		// Accept new connections
 		connection, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Connection acceptance error: ", err.Error())
-			continue
+			if shuttingDown {
+				// If we are shutting down, exit the loop
+				fmt.Println("Shutting down listener")
+				break
+			} else {
+				fmt.Println("Connection acceptance error:", err.Error())
+				continue
+			}
 		}
 
-		// Handle each connection in a new goroutine
-		go handleConnection(connection, appOnlyFile)
+		// Increment the WaitGroup counter
+		wg.Add(1)
+
+		// Handle each connection in a new go routine
+		go func(conn net.Conn) {
+			defer wg.Done() // Decrement the counter when the go routine completes
+			handleConnection(conn, appOnlyFile)
+		}(connection)
 	}
 }
 
@@ -51,7 +97,7 @@ func handleConnection(
 
 		value, err := resp.Read()
 		if err != nil {
-			fmt.Println("RESP read error: ", err.Error())
+			fmt.Println("RESP read error:", err.Error())
 			return
 		}
 
@@ -88,7 +134,7 @@ func handleConnection(
 		if logCommands[command] {
 			err = appOnlyFile.Write(value)
 			if err != nil {
-				fmt.Println("AppendOnlyFile write error: ", err.Error())
+				fmt.Println("AppendOnlyFile write error:", err.Error())
 				continue
 			}
 		}

@@ -54,10 +54,6 @@ func NewAof(path string) (*AppendOnlyFile, error) {
 		handler(args)
 	})
 
-	// clean existing file
-	currentState := GetCurrentState()
-	appendOnlyFile.rewriteAof(currentState)
-
 	// goroutine that will sync to disk every 5 seconds
 	go func() {
 		for {
